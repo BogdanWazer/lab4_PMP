@@ -10,10 +10,9 @@ import {
   Modal,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import { WebView } from 'react-native-webview';
+import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 
 export default function App() {
-  const [a, setA] = useState('');
   const [x, setX] = useState('');
   const [y, setY] = useState('');
   const [result, setResult] = useState('');
@@ -24,6 +23,7 @@ export default function App() {
   const [tableEnd, setTableEnd] = useState('');
   const [tableStep, setTableStep] = useState('');
   const [fileContent, setFileContent] = useState('');
+  const [graphPoints, setGraphPoints] = useState([]);
   const authorImage = require('./assets/images/f1.png');
 
   useEffect(() => {
@@ -31,21 +31,19 @@ export default function App() {
   }, []);
 
   const calculateF = () => {
-    const parsedA = parseFloat(a);
     const parsedX = parseFloat(x);
     const parsedY = parseFloat(y);
 
-    if (!isNaN(parsedA) && !isNaN(parsedX) && !isNaN(parsedY)) {
+    if (!isNaN(parsedX) && !isNaN(parsedY)) {
       const F =
         Math.sqrt(
-          Math.pow(parsedA + parsedY, 2) +
-            Math.pow(Math.sin(parsedY + 5), 1 / 7)
+          Math.pow(2 + parsedY, 2) + Math.pow(Math.sin(parsedY + 5), 1 / 7)
         ) /
         (Math.log(parsedX + 1) - Math.pow(parsedY, 3));
 
       if (!isNaN(F)) {
         setResult(`Результат: ${F}`);
-        saveToFile(parsedA, parsedX, parsedY, F);
+        saveToFile(parsedX, parsedY, F);
       } else {
         setResult('Введіть коректні значення для розрахунку.');
       }
@@ -54,8 +52,8 @@ export default function App() {
     }
   };
 
-  const saveToFile = async (parsedA, parsedX, parsedY, F) => {
-    const content = `A: ${parsedA}, X: ${parsedX}, Y: ${parsedY}, F: ${F}\n`;
+  const saveToFile = async (parsedX, parsedY, F) => {
+    const content = `X: ${parsedX}, Y: ${parsedY}, F: ${F}\n`;
     const path = `${FileSystem.documentDirectory}results.txt`;
 
     try {
@@ -94,14 +92,15 @@ export default function App() {
     const step = parseFloat(tableStep);
 
     if (!isNaN(start) && !isNaN(end) && !isNaN(step) && step > 0) {
-      let table = '';
+      let points = [];
       for (let i = start; i <= end; i += step) {
         const F =
-          Math.sqrt(Math.pow(a + i, 2) + Math.pow(Math.sin(i + 5), 1 / 7)) /
+          Math.sqrt(Math.pow(2 + i, 2) + Math.pow(Math.sin(i + 5), 1 / 7)) /
           (Math.log(i + 1) - Math.pow(i, 3));
-        table += `X: ${i}, F: ${F}\n`;
+        points.push({ x: i, y: F });
       }
-      setResult(table);
+      setGraphPoints(points);
+      setResult('Таблиця обчислень збережена');
     } else {
       setResult('Невірні значення проміжку або кроку табуляції.');
     }
@@ -110,13 +109,6 @@ export default function App() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Розрахунок прикладу</Text>
-      <TextInput
-        style={styles.input}
-        onChangeText={(text) => setA(text)}
-        value={a}
-        placeholder="Введіть значення a"
-        keyboardType="numeric"
-      />
       <TextInput
         style={styles.input}
         onChangeText={(text) => setX(text)}
@@ -173,13 +165,69 @@ export default function App() {
       <Button onPress={showAuthorInfo} title="Показати інформацію про автора" />
       <Button onPress={readFromFile} title="Прочитати з файлу" />
       <Text>{fileContent}</Text>
+      <Svg height="400" width="400">
+        {graphPoints.map((point, index) => (
+          <Circle
+            key={index}
+            cx={(point.x - parseFloat(tableStart)) * 30}
+            cy={300 - point.y * 30}
+            r="3"
+            fill="red"
+          />
+        ))}
+        {graphPoints.map((point, index) => {
+          if (index < graphPoints.length - 1) {
+            const nextPoint = graphPoints[index + 1];
+            return (
+              <Line
+                key={index}
+                x1={(point.x - parseFloat(tableStart)) * 30}
+                y1={300 - point.y * 30}
+                x2={(nextPoint.x - parseFloat(tableStart)) * 30}
+                y2={300 - nextPoint.y * 30}
+                stroke="black"
+                strokeWidth="2"
+              />
+            );
+          }
+        })}
+        <Line
+          x1="0"
+          y1="300"
+          x2="400"
+          y2="300"
+          stroke="black"
+          strokeWidth="2"
+        />
+        <Line x1="0" y1="300" x2="0" y2="0" stroke="black" strokeWidth="2" />
+        {[...Array(11).keys()].map((num) => (
+          <Text
+            key={num}
+            x={num * 30}
+            y="320"
+            fontSize="12"
+            textAnchor="middle">
+            {parseFloat(tableStart) + num}
+          </Text>
+        ))}
+        {[...Array(7).keys()].map((num) => (
+          <Text
+            key={num}
+            x="-20"
+            y={300 - num * 50}
+            fontSize="12"
+            textAnchor="end">
+            {(num * 50).toFixed(2)}
+          </Text>
+        ))}
+        <SvgText x="380" y="320" fontSize="12">
+          X
+        </SvgText>
+        <SvgText x="-20" y="280" fontSize="12">
+          Y
+        </SvgText>
+      </Svg>
       <StatusBar style="auto" />
-      <WebView
-        source={{
-          html: `<html><body><canvas id="myCanvas"></canvas><script>var canvas = document.getElementById('myCanvas');var ctx = canvas.getContext('2d');var x = ${a};var y = ${x};var width = canvas.width;height = canvas.height;var scale = width/10;ctx.beginPath();ctx.moveTo(0, height/2);for(var i = 0; i <= 10; i += 0.01){var f = Math.sqrt(Math.pow(x + i, 2) + Math.pow(Math.sin(i + 5), 1 / 7)) / (Math.log(i + 1) - Math.pow(i, 3));ctx.lineTo(i*scale, height/2 - f*scale);};ctx.stroke();</script></body></html>`,
-        }}
-        style={{ width: 300, height: 300 }}
-      />
     </View>
   );
 }
@@ -216,7 +264,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     marginTop: 20,
-    borderRadius: 100, // робить зображення круглим
+    borderRadius: 100,
   },
   modalContainer: {
     flex: 1,
